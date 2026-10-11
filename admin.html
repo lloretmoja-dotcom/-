@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BebixAdmin — Panel de Control</title>
+<style>
+  :root{
+    --bg:#f4f7fc;
+    --card:#ffffff;
+    --primary:#2f80ff;
+    --primary-dark:#1f5fd0;
+    --text:#1c2a44;
+    --muted:#6b7d99;
+    --border:#e1e8f2;
+    --danger:#e5484d;
+    --ok:#18a058;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'Segoe UI',Roboto,system-ui,sans-serif;
+    background:var(--bg);color:var(--text);min-height:100vh;
+  }
+  header{
+    background:linear-gradient(90deg,#2f80ff,#4a9bff);
+    color:#fff;padding:18px 28px;
+    display:flex;align-items:center;gap:14px;
+    box-shadow:0 2px 10px rgba(47,128,255,.25);
+  }
+  header h1{font-size:20px;font-weight:700;}
+  header .badge{
+    background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px;font-size:12px;
+  }
+  main{
+    max-width:1150px;margin:26px auto;padding:0 20px;
+    display:flex;flex-direction:column;gap:24px;
+  }
+  .panel{
+    background:var(--card);border-radius:14px;padding:22px;
+    box-shadow:0 2px 12px rgba(20,40,80,.06);border:1px solid var(--border);
+  }
+  .panel h2{font-size:16px;margin-bottom:16px;color:var(--primary-dark);}
+  .grid-form{
+    display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  }
+  .grid-form input{
+    padding:11px 13px;border:1px solid var(--border);border-radius:9px;
+    font-size:14px;color:var(--text);outline:none;transition:.15s;background:#fbfcff;
+  }
+  .grid-form input:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 3px rgba(47,128,255,.12);}
+  .grid-form .full{grid-column:1/-1;}
+  .btn-row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+  button{
+    cursor:pointer;border:none;border-radius:9px;font-size:13.5px;
+    font-weight:600;padding:11px 18px;transition:.15s;
+  }
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-ghost{background:#eef4ff;color:var(--primary-dark);}
+  .btn-ghost:hover{background:#dfeaff;}
+  .btn-danger{background:#fdecec;color:var(--danger);}
+  .btn-danger:hover{background:#fbdbdb;}
+  .btn-ok{background:#e7f7ee;color:var(--ok);}
+  .btn-ok:hover{background:#d5f0e0;}
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  thead th{
+    text-align:left;padding:12px 10px;color:var(--muted);
+    font-size:12px;text-transform:uppercase;letter-spacing:.5px;
+    border-bottom:2px solid var(--border);
+  }
+  tbody td{padding:12px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:hover{background:#f8faff;}
+  td img{width:38px;height:38px;object-fit:contain;background:#f1f5fb;border-radius:8px;padding:3px;}
+  .status-pill{
+    display:inline-block;padding:4px 10px;border-radius:20px;
+    font-size:11.5px;font-weight:700;
+  }
+  .status-on{background:#e7f7ee;color:var(--ok);}
+  .status-off{background:#fdecec;color:var(--danger);}
+  .actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .actions button{padding:7px 11px;font-size:12px;}
+  .count-badge{font-size:12px;color:var(--muted);margin-left:auto;}
+  .panel-head{display:flex;align-items:center;margin-bottom:16px;}
+  @media(max-width:720px){
+    .grid-form{grid-template-columns:1fr;}
+    table{font-size:12px;}
+    td img{width:30px;height:30px;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚙️ BebixAdmin</h1>
+  <span class="badge">Panel de Control</span>
+</header>
+
+<main>
+  <!-- FORMULARIO -->
+  <section class="panel">
+    <h2>➕ Añadir nuevo canal</h2>
+    <form id="channelForm">
+      <div class="grid-form">
+        <input type="text" id="f_name" placeholder="Nombre del canal *" required />
+        <input type="text" id="f_group" placeholder="Grupo / País *" required />
+        <input type="url" id="f_logo" placeholder="URL del logo (https://...)" />
+        <input type="url" id="f_url" placeholder="URL de emisión .m3u8 *" required />
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn-primary">Guardar canal</button>
+        <button type="button" class="btn-ghost" id="clearForm">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- TABLA -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2 style="margin:0;">📋 Canales registrados</h2>
+      <span class="count-badge" id="countBadge">0 canales</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Logo</th>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Grupo</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="margin-top:18px;">
+      <button class="btn-primary" id="exportBtn">⬇️ Exportar JSON</button>
+      <button class="btn-danger" id="resetBtn">🗑️ Restaurar original</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const STORAGE_KEY = "bebixtv_channels";
+  let channels = [];
+
+  async function init() {
+    const local = localStorage.getItem(STORAGE_KEY);
+    if (local) {
+      try { channels = JSON.parse(local); } catch { channels = []; }
+    }
+    if (!channels.length) {
+      try {
+        const res = await fetch("channels.json", { cache: "no-store" });
+        channels = await res.json();
+      } catch (e) {
+        console.error("No se pudo cargar channels.json", e);
+        channels = [];
+      }
+    }
+    renderTable();
+  }
+
+  function persist() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(channels));
+  }
+
+  function nextId() {
+    return channels.length ? Math.max(...channels.map(c => c.id)) + 1 : 1;
+  }
+
+  function renderTable() {
+    const tbody = $("tableBody");
+    $("countBadge").textContent = `${channels.length} canal${channels.length === 1 ? '' : 'es'}`;
+
+    if (!channels.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#6b7d99;padding:30px;">Sin canales. Añade uno arriba.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = channels.map(c => `
+      <tr>
+        <td><img src="${c.logo}" alt="" onerror="this.style.visibility='hidden'"></td>
+        <td>${c.id}</td>
+        <td><strong>${c.name}</strong></td>
+        <td>${c.group}</td>
+        <td>
+          <span class="status-pill ${c.active ? 'status-on' : 'status-off'}">
+            ${c.active ? '● Activo' : '○ Inactivo'}
+          </span>
+        </td>
+        <td>
+          <div class="actions">
+            <button class="${c.active ? 'btn-danger' : 'btn-ok'}" data-action="toggle" data-id="${c.id}">
+              ${c.active ? 'Desactivar' : 'Activar'}
+            </button>
+            <button class="btn-danger" data-action="delete" data-id="${c.id}">Eliminar</button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    tbody.querySelectorAll("button[data-action]").forEach(btn => {
+      btn.addEventListener("click", () => handleAction(btn.dataset.action, Number(btn.dataset.id)));
+    });
+  }
+
+  function handleAction(action, id) {
+    const idx = channels.findIndex(c => c.id === id);
+    if (idx < 0) return;
+
+    if (action === "toggle") {
+      channels[idx].active = !channels[idx].active;
+      persist();
+      renderTable();
+    } else if (action === "delete") {
+      const name = channels[idx].name;
+      if (confirm(`¿Eliminar el canal "${name}"? Esta acción no se puede deshacer.`)) {
+        channels.splice(idx, 1);
+        persist();
+        renderTable();
+      }
+    }
+  }
+
+  $("channelForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const newChannel = {
+      id: nextId(),
+      name: $("f_name").value.trim(),
+      group: $("f_group").value.trim(),
+      logo: $("f_logo").value.trim() || "https://via.placeholder.com/80?text=TV",
+      url: $("f_url").value.trim(),
+      active: true
+    };
+    if (!newChannel.name || !newChannel.group || !newChannel.url) return;
+    channels.push(newChannel);
+    persist();
+    renderTable();
+    e.target.reset();
+  });
+
+  $("clearForm").addEventListener("click", () => $("channelForm").reset());
+
+  $("exportBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(channels, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "channels.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  $("resetBtn").addEventListener("click", async () => {
+    if (!confirm("Se descartarán los cambios locales y se recargará channels.json original. ¿Continuar?")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    const res = await fetch("channels.json", { cache: "no-store" });
+    channels = await res.json();
+    renderTable();
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
