@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BebixTV — Sistema Avanzado</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg: #090d16;
+      --panel: #111827;
+      --panel-light: #1f2937;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --danger: #ef4444;
+      --success: #10b981;
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --border: #374151;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+
+    .app-container { display: grid; grid-template-columns: 350px 1fr; height: 100vh; }
+
+    /* SIDEBAR */
+    .sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar-header { padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+    .brand { font-size: 20px; font-weight: 800; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    .admin-btn { background: var(--panel-light); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+    .admin-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+    .search-box { padding: 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--border); }
+    .search-box input, .search-box select { background: var(--panel-light); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; outline: none; font-size: 14px; }
+
+    .channel-list { flex: 1; overflow-y: auto; padding: 10px; }
+    .channel-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--panel-light); margin-bottom: 8px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; transition: 0.2s; }
+    .channel-item:hover, .channel-item.active { border-color: var(--accent); background: #1e3a8a; }
+    .channel-item img { width: 42px; height: 42px; object-fit: contain; background: #000; border-radius: 6px; padding: 2px; }
+    .channel-details { flex: 1; overflow: hidden; }
+    .channel-details h4 { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .channel-details span { font-size: 11px; color: var(--muted); }
+
+    /* PLAYER AREA */
+    .player-section { display: flex; flex-direction: column; background: #000; position: relative; }
+    .video-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+    video { width: 100%; height: 100%; object-fit: contain; }
+    .player-controls { padding: 16px 24px; background: var(--panel); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+
+    /* MODAL ADMIN INTEGRADO */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(5px); }
+    .modal-overlay.active { display: flex; }
+    .modal-card { background: var(--panel); border: 1px solid var(--border); width: 90%; max-width: 800px; max-height: 85vh; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; }
+    .modal-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-grid input, .form-grid select { padding: 10px; background: var(--panel-light); border: 1px solid var(--border); color: #fff; border-radius: 8px; outline: none; }
+    .btn { padding: 10px 16px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-danger { background: var(--danger); color: #fff; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: var(--panel-light); color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- BARRA LATERAL (CANALES Y BUSCADOR) -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">📺 BebixTV <span>Pro</span></div>
+      <button class="admin-btn" onclick="openAdminModal()">⚙️ Admin</button>
+    </div>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="🔍 Buscar canal..." oninput="renderChannels()">
+      <select id="groupSelect" onchange="renderChannels()">
+        <option value="">Todos los grupos</option>
+      </select>
+    </div>
+    <div class="channel-list" id="channelContainer"></div>
+  </aside>
+
+  <!-- SECCIÓN REPRODUCTOR DE VÍDEO -->
+  <main class="player-section">
+    <div class="video-wrapper">
+      <video id="mainVideo" controls autoplay></video>
+    </div>
+    <div class="player-controls">
+      <div>
+        <h3 id="currentTitle">Selecciona un canal</h3>
+        <p id="currentGroup" style="font-size: 12px; color: var(--muted);"></p>
+      </div>
+      <button class="btn btn-primary" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
+    </div>
+  </main>
+</div>
+
+<!-- PANEL DE ADMINISTRACIÓN INTEGRADO (MODAL DENTRO DE LA APP) -->
+<div class="modal-overlay" id="adminModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>⚙️ Panel de Control Administrador</h2>
+      <button class="btn btn-danger" onclick="closeAdminModal()">✕ Cerrar</button>
+    </div>
+    <div class="modal-body">
+      <!-- FORMULARIO PARA AÑADIR/EDITAR -->
+      <h3>➕ Añadir Nuevo Canal</h3>
+      <div class="form-grid">
+        <input type="text" id="adminName" placeholder="Nombre del Canal">
+        <input type="text" id="adminGroup" placeholder="Grupo / País">
+        <input type="text" id="adminLogo" placeholder="URL Logo (https://...)">
+        <input type="text" id="adminUrl" placeholder="URL Streaming (.m3u8)">
+      </div>
+      <button class="btn btn-primary" onclick="addChannelFromAdmin()">Guardar Canal en el Sistema</button>
+
+      <hr style="border-color: var(--border); margin: 10px 0;">
+
+      <!-- LISTA Y GESTIÓN -->
+      <h3>📋 Canales Registrados</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Grupo</th>
+            <th>Estado</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="adminTableBody"></tbody>
+      </table>
+
+      <div style="margin-top: 15px; display: flex; gap: 10px;">
+        <button class="btn btn-primary" onclick="exportJSON()">⬇️ Exportar Configuración (JSON)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let channels = [];
+  let currentHls = null;
+  const video = document.getElementById('mainVideo');
+  const PIN_ADMIN = "1234"; // PIN de acceso al panel Admin
+
+  async function loadInitialData() {
+    const saved = localStorage.getItem('bebix_channels_data');
+    if (saved) {
+      channels = JSON.parse(saved);
+    } else {
+      try {
+        const res = await fetch('channels.json');
+        channels = await res.json();
+      } catch (e) {
+        channels = [];
+      }
+    }
+    updateGroupDropdown();
+    renderChannels();
+  }
+
+  function saveChannels() {
+    localStorage.setItem('bebix_channels_data', JSON.stringify(channels));
+    updateGroupDropdown();
+    renderChannels();
+    renderAdminTable();
+  }
+
+  function updateGroupDropdown() {
+    const groups = [...new Set(channels.map(c => c.group))];
+    const select = document.getElementById('groupSelect');
+    select.innerHTML = '<option value="">Todos los grupos</option>';
+    groups.forEach(g => {
+      select.innerHTML += `<option value="${g}">${g}</option>`;
+    });
+  }
+
+  function renderChannels() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const group = document.getElementById('groupSelect').value;
+    const container = document.getElementById('channelContainer');
+    container.innerHTML = '';
+
+    const filtered = channels.filter(c => 
+      c.active &&
+      c.name.toLowerCase().includes(search) &&
+      (group === '' || c.group === group)
+    );
+
+    filtered.forEach(ch => {
+      const item = document.createElement('div');
+      item.className = 'channel-item';
+      item.onclick = () => playStream(ch, item);
+      item.innerHTML = `
+        <img src="${ch.logo || 'https://via.placeholder.com/40'}" alt="logo">
+        <div class="channel-details">
+          <h4>${ch.name}</h4>
+          <span>${ch.group}</span>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  function playStream(channel, element) {
+    document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+    if (element) element.classList.add('active');
+
+    document.getElementById('currentTitle').textContent = channel.name;
+    document.getElementById('currentGroup').textContent = channel.group;
+
+    if (currentHls) currentHls.destroy();
+
+    if (Hls.isSupported()) {
+      currentHls = new Hls();
+      currentHls.loadSource(channel.url);
+      currentHls.attachMedia(video);
+      currentHls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = channel.url;
+      video.play();
+    }
+  }
+
+  /* SISTEMA DE ADMIN INTEGRADO CON SEGURIDAD */
+  function openAdminModal() {
+    const inputPin = prompt("Introduce el PIN de Administrador (Por defecto: 1234):");
+    if (inputPin === PIN_ADMIN) {
+      document.getElementById('adminModal').classList.add('active');
+      renderAdminTable();
+    } else if (inputPin !== null) {
+      alert("PIN Incorrecto. Acceso denegado.");
+    }
+  }
+
+  function closeAdminModal() {
+    document.getElementById('adminModal').classList.remove('active');
+  }
+
+  function renderAdminTable() {
+    const tbody = document.getElementById('adminTableBody');
+    tbody.innerHTML = '';
+    channels.forEach((ch, index) => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${ch.id}</td>
+          <td><strong>${ch.name}</strong></td>
+          <td>${ch.group}</td>
+          <td><span style="color:${ch.active ? 'var(--success)' : 'var(--danger)'}">${ch.active ? '● Activo' : '○ Inactivo'}</span></td>
+          <td>
+            <button class="btn btn-primary" style="padding:4px 8px; font-size:11px;" onclick="toggleStatus(${index})">Estado</button>
+            <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteChannel(${index})">Borrar</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  function addChannelFromAdmin() {
+    const name = document.getElementById('adminName').value;
+    const group = document.getElementById('adminGroup').value;
+    const logo = document.getElementById('adminLogo').value;
+    const url = document.getElementById('adminUrl').value;
+
+    if (!name || !url) return alert("El nombre y la URL son obligatorios.");
+
+    channels.push({
+      id: channels.length ? Math.max(...channels.map(c => c.id)) + 1 : 1,
+      name, group: group || 'General', logo, url, active: true
+    });
+
+    saveChannels();
+    document.getElementById('adminName').value = '';
+    document.getElementById('adminGroup').value = '';
+    document.getElementById('adminLogo').value = '';
+    document.getElementById('adminUrl').value = '';
+  }
+
+  function toggleStatus(index) {
+    channels[index].active = !channels[index].active;
+    saveChannels();
+  }
+
+  function deleteChannel(index) {
+    if (confirm("¿Eliminar este canal permanentemente?")) {
+      channels.splice(index, 1);
+      saveChannels();
+    }
+  }
+
+  function exportJSON() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(channels, null, 2));
+    const a = document.createElement('a');
+    a.href = dataStr;
+    a.download = "channels.json";
+    a.click();
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) video.requestFullscreen();
+    else document.exitFullscreen();
+  }
+
+  loadInitialData();
+</script>
+</body>
+</html>
